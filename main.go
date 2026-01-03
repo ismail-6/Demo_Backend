@@ -27,32 +27,32 @@ func main() {
 	// API Routes
 	api := router.Group("/api")
 	{
-		// Auth routes
+		// Auth routes (Raw SQL)
 		auth := api.Group("/auth")
 		{
-			auth.POST("/login", handlers.Login)
-			auth.POST("/logout", handlers.Logout)
-			auth.GET("/user/:userId", handlers.GetUser)
+			auth.POST("/login", handlers.LoginRaw)
+			auth.POST("/logout", handlers.LogoutRaw)
+			auth.GET("/user/:userId", handlers.GetUserRaw)
 		}
 
-		// Chapter routes
+		// Chapter routes (Raw SQL)
 		chapters := api.Group("/chapters")
 		{
-			chapters.GET("", handlers.GetAllChapters)
-			chapters.GET("/:id", handlers.GetChapterByID)
-			chapters.GET("/:id/video", handlers.GetChapterVideo)
-			chapters.GET("/:id/quiz", handlers.GetChapterQuiz)
-			chapters.GET("/:id/content", handlers.GetChapterContent)
+			chapters.GET("", handlers.GetAllChaptersRaw)
+			chapters.GET("/:id", handlers.GetChapterByIDRaw)
+			chapters.GET("/:id/video", handlers.GetChapterVideoRaw)
+			chapters.GET("/:id/quiz", handlers.GetChapterQuizRaw)
+			chapters.GET("/:id/content", handlers.GetChapterContentRaw)
 		}
 
-		// Progress routes
+		// Progress routes (Raw SQL)
 		progress := api.Group("/progress")
 		{
-			progress.POST("", handlers.SaveProgress)
-			progress.GET("/user/:userId", handlers.GetUserProgress)
-			progress.GET("/user/:userId/all", handlers.GetAllUserProgress)
-			progress.GET("/user/:userId/chapter/:chapterId", handlers.GetChapterProgress)
-			progress.DELETE("/user/:userId/reset", handlers.ResetProgress)
+			progress.POST("", handlers.SaveProgressRaw)
+			progress.GET("/user/:userId", handlers.GetUserProgressRaw)
+			progress.GET("/user/:userId/all", handlers.GetAllUserProgressRaw)
+			progress.GET("/user/:userId/chapter/:chapterId", handlers.GetChapterProgressRaw)
+			progress.DELETE("/user/:userId/reset", handlers.ResetProgressRaw)
 		}
 	}
 
