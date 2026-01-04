@@ -1,60 +1,88 @@
 package handlers
 
 import (
+	"database/sql"
 	"learning-app-backend/database"
-	"learning-app-backend/models"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Login - Simple userId based login (no password required)
+type LoginRequest struct {
+	UserID string `json:"user_id" binding:"required"`
+}
+
+type User struct {
+	ID        uint      `json:"id"`
+	UserID    string    `json:"user_id"`
+	Username  string    `json:"username"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Login - Query-driven login
 func Login(c *gin.Context) {
-	var req models.LoginRequest
+	var req LoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.LoginResponse{
-			Success: false,
-			Message: "Invalid request format",
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request format",
 		})
 		return
 	}
 
-	// Trim whitespace and validate
 	req.UserID = strings.TrimSpace(req.UserID)
 	if req.UserID == "" {
-		c.JSON(http.StatusBadRequest, models.LoginResponse{
-			Success: false,
-			Message: "User ID cannot be empty",
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "User ID cannot be empty",
 		})
 		return
 	}
 
+	sqlDB, _ := database.DB.DB()
+
 	// Check if user exists
-	var user models.User
-	result := database.DB.Where("user_id = ?", req.UserID).First(&user)
+	var user User
+	query := `SELECT id, user_id, username, created_at, updated_at
+			  FROM users WHERE user_id = $1 AND deleted_at IS NULL`
 
-	if result.Error != nil {
-		// User doesn't exist, create new user
-		user = models.User{
-			UserID:   req.UserID,
-			Username: req.UserID, // Using userID as username for simplicity
-		}
+	err := sqlDB.QueryRow(query, req.UserID).Scan(
+		&user.ID, &user.UserID, &user.Username, &user.CreatedAt, &user.UpdatedAt,
+	)
 
-		if err := database.DB.Create(&user).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, models.LoginResponse{
-				Success: false,
-				Message: "Failed to create user",
+	if err == sql.ErrNoRows {
+		// Create new user
+		insertQuery := `INSERT INTO users (user_id, username, created_at, updated_at)
+						VALUES ($1, $2, NOW(), NOW())
+						RETURNING id, user_id, username, created_at, updated_at`
+
+		err = sqlDB.QueryRow(insertQuery, req.UserID, req.UserID).Scan(
+			&user.ID, &user.UserID, &user.Username, &user.CreatedAt, &user.UpdatedAt,
+		)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Failed to create user",
 			})
 			return
 		}
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+		})
+		return
 	}
 
-	c.JSON(http.StatusOK, models.LoginResponse{
-		Success: true,
-		Message: "Login successful",
-		User:    &user,
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Login successful",
+		"user":    user,
 	})
 }
 
@@ -70,13 +98,26 @@ func Logout(c *gin.Context) {
 func GetUser(c *gin.Context) {
 	userID := c.Param("userId")
 
-	var user models.User
-	result := database.DB.Where("user_id = ?", userID).First(&user)
+	sqlDB, _ := database.DB.DB()
 
-	if result.Error != nil {
+	var user User
+	query := `SELECT id, user_id, username, created_at, updated_at
+			  FROM users WHERE user_id = $1 AND deleted_at IS NULL`
+
+	err := sqlDB.QueryRow(query, userID).Scan(
+		&user.ID, &user.UserID, &user.Username, &user.CreatedAt, &user.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"message": "User not found",
+		})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
 		})
 		return
 	}

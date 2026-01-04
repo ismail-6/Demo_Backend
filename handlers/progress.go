@@ -1,152 +1,221 @@
 package handlers
 
 import (
+	"database/sql"
 	"learning-app-backend/database"
-	"learning-app-backend/models"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-// SaveProgress - Save or update user progress
+type SaveProgressRequest struct {
+	UserID            string `json:"user_id" binding:"required"`
+	ChapterID         uint   `json:"chapter_id" binding:"required"`
+	ContentType       string `json:"content_type" binding:"required"`
+	VideoTimestamp    *int   `json:"video_timestamp"`
+	QuizQuestionIndex *int   `json:"quiz_question_index"`
+	IsCompleted       bool   `json:"is_completed"`
+}
+
+type Progress struct {
+	ID                uint       `json:"id"`
+	UserID            string     `json:"user_id"`
+	ChapterID         uint       `json:"chapter_id"`
+	ContentType       string     `json:"content_type"`
+	VideoTimestamp    *int       `json:"video_timestamp,omitempty"`
+	QuizQuestionIndex *int       `json:"quiz_question_index,omitempty"`
+	IsCompleted       bool       `json:"is_completed"`
+	LastUpdated       time.Time  `json:"last_updated"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+}
+
+type UserProgressSummary struct {
+	HasProgress      bool       `json:"has_progress"`
+	LastChapterID    *uint      `json:"last_chapter_id,omitempty"`
+	LastContentType  *string    `json:"last_content_type,omitempty"`
+	LastVideoTime    *int       `json:"last_video_time,omitempty"`
+	LastQuizQuestion *int       `json:"last_quiz_question,omitempty"`
+	ChapterTitle     *string    `json:"chapter_title,omitempty"`
+	LastUpdated      *time.Time `json:"last_updated,omitempty"`
+}
+
+// SaveProgressRaw - Save or update progress using raw SQL
 func SaveProgress(c *gin.Context) {
-	var req models.SaveProgressRequest
+	var req SaveProgressRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ProgressResponse{
-			Success: false,
-			Message: "Invalid request format: " + err.Error(),
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request format: " + err.Error(),
 		})
 		return
 	}
 
 	// Validate content type
-	if req.ContentType != models.ContentTypeVideo && req.ContentType != models.ContentTypeQuiz {
-		c.JSON(http.StatusBadRequest, models.ProgressResponse{
-			Success: false,
-			Message: "Invalid content type. Must be 'video' or 'quiz'",
+	if req.ContentType != "video" && req.ContentType != "quiz" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid content type. Must be 'video' or 'quiz'",
 		})
 		return
 	}
 
-	// Validate that appropriate field is provided based on content type
-	if req.ContentType == models.ContentTypeVideo && req.VideoTimestamp == nil {
-		c.JSON(http.StatusBadRequest, models.ProgressResponse{
-			Success: false,
-			Message: "video_timestamp is required for video content type",
+	// Validate required fields
+	if req.ContentType == "video" && req.VideoTimestamp == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "video_timestamp is required for video content type",
 		})
 		return
 	}
 
-	if req.ContentType == models.ContentTypeQuiz && req.QuizQuestionIndex == nil {
-		c.JSON(http.StatusBadRequest, models.ProgressResponse{
-			Success: false,
-			Message: "quiz_question_index is required for quiz content type",
+	if req.ContentType == "quiz" && req.QuizQuestionIndex == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "quiz_question_index is required for quiz content type",
 		})
 		return
 	}
+
+	sqlDB, _ := database.DB.DB()
 
 	// Check if user exists
-	var user models.User
-	if err := database.DB.Where("user_id = ?", req.UserID).First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, models.ProgressResponse{
-			Success: false,
-			Message: "User not found",
+	var userExists bool
+	userQuery := `SELECT EXISTS(SELECT 1 FROM users WHERE user_id = $1 AND deleted_at IS NULL)`
+	err := sqlDB.QueryRow(userQuery, req.UserID).Scan(&userExists)
+	if err != nil || !userExists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "User not found",
 		})
 		return
 	}
 
 	// Check if chapter exists
-	var chapter models.Chapter
-	if err := database.DB.First(&chapter, req.ChapterID).Error; err != nil {
-		c.JSON(http.StatusNotFound, models.ProgressResponse{
-			Success: false,
-			Message: "Chapter not found",
+	var chapterExists bool
+	chapterQuery := `SELECT EXISTS(SELECT 1 FROM chapters WHERE id = $1 AND deleted_at IS NULL)`
+	err = sqlDB.QueryRow(chapterQuery, req.ChapterID).Scan(&chapterExists)
+	if err != nil || !chapterExists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Chapter not found",
 		})
 		return
 	}
 
-	// Find existing progress record
-	var progress models.Progress
-	result := database.DB.Where("user_id = ? AND chapter_id = ? AND content_type = ?",
-		req.UserID, req.ChapterID, req.ContentType).First(&progress)
+	// Check if progress exists
+	var progressID sql.NullInt64
+	checkQuery := `SELECT id FROM progresses
+				   WHERE user_id = $1 AND chapter_id = $2 AND content_type = $3 AND deleted_at IS NULL`
+	err = sqlDB.QueryRow(checkQuery, req.UserID, req.ChapterID, req.ContentType).Scan(&progressID)
 
-	now := time.Now()
+	var progress Progress
 
-	if result.Error != nil {
-		// Create new progress record
-		progress = models.Progress{
-			UserID:            req.UserID,
-			ChapterID:         req.ChapterID,
-			ContentType:       req.ContentType,
-			VideoTimestamp:    req.VideoTimestamp,
-			QuizQuestionIndex: req.QuizQuestionIndex,
-			IsCompleted:       req.IsCompleted,
-			LastUpdated:       now,
+	if err == sql.ErrNoRows {
+		// Create new progress
+		insertQuery := `INSERT INTO progresses (user_id, chapter_id, content_type, video_timestamp,
+				   quiz_question_index, is_completed, last_updated, created_at, updated_at)
+				   VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), NOW())
+				   RETURNING id, user_id, chapter_id, content_type, video_timestamp,
+				   quiz_question_index, is_completed, last_updated, created_at, updated_at`
+
+		err = sqlDB.QueryRow(insertQuery, req.UserID, req.ChapterID, req.ContentType,
+			req.VideoTimestamp, req.QuizQuestionIndex, req.IsCompleted).Scan(
+			&progress.ID, &progress.UserID, &progress.ChapterID, &progress.ContentType,
+			&progress.VideoTimestamp, &progress.QuizQuestionIndex, &progress.IsCompleted,
+			&progress.LastUpdated, &progress.CreatedAt, &progress.UpdatedAt,
+		)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Failed to save progress",
+			})
+			return
 		}
+	} else if err == nil {
+		// Update existing progress
+		updateQuery := `UPDATE progresses SET video_timestamp = $1, quiz_question_index = $2,
+						is_completed = $3, last_updated = NOW(), updated_at = NOW()
+						WHERE id = $4
+						RETURNING id, user_id, chapter_id, content_type, video_timestamp,
+						quiz_question_index, is_completed, last_updated, created_at, updated_at`
 
-		if err := database.DB.Create(&progress).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, models.ProgressResponse{
-				Success: false,
-				Message: "Failed to save progress",
+		err = sqlDB.QueryRow(updateQuery, req.VideoTimestamp, req.QuizQuestionIndex,
+			req.IsCompleted, progressID.Int64).Scan(
+			&progress.ID, &progress.UserID, &progress.ChapterID, &progress.ContentType,
+			&progress.VideoTimestamp, &progress.QuizQuestionIndex, &progress.IsCompleted,
+			&progress.LastUpdated, &progress.CreatedAt, &progress.UpdatedAt,
+		)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Failed to update progress",
 			})
 			return
 		}
 	} else {
-		// Update existing progress
-		progress.VideoTimestamp = req.VideoTimestamp
-		progress.QuizQuestionIndex = req.QuizQuestionIndex
-		progress.IsCompleted = req.IsCompleted
-		progress.LastUpdated = now
-
-		if err := database.DB.Save(&progress).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, models.ProgressResponse{
-				Success: false,
-				Message: "Failed to update progress",
-			})
-			return
-		}
-	}
-
-	c.JSON(http.StatusOK, models.ProgressResponse{
-		Success:  true,
-		Message:  "Progress saved successfully",
-		Progress: &progress,
-	})
-}
-
-// GetUserProgress - Get latest progress for a user
-func GetUserProgress(c *gin.Context) {
-	userID := c.Param("userId")
-
-	// Get the most recent progress entry
-	var progress models.Progress
-	result := database.DB.Where("user_id = ?", userID).
-		Order("last_updated DESC").
-		First(&progress)
-
-	if result.Error != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success":     true,
-			"has_progress": false,
-			"message":     "No progress found for this user",
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
 		})
 		return
 	}
 
-	// Get chapter details
-	var chapter models.Chapter
-	database.DB.First(&chapter, progress.ChapterID)
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"message":  "Progress saved successfully",
+		"progress": progress,
+	})
+}
 
-	contentType := string(progress.ContentType)
-	summary := models.UserProgressSummary{
+// GetUserProgressRaw - Get latest progress for a user
+func GetUserProgress(c *gin.Context) {
+	userID := c.Param("userId")
+	sqlDB, _ := database.DB.DB()
+
+	query := `SELECT p.id, p.user_id, p.chapter_id, p.content_type, p.video_timestamp,
+			  p.quiz_question_index, p.is_completed, p.last_updated, ch.title
+			  FROM progresses p
+			  JOIN chapters ch ON p.chapter_id = ch.id
+			  WHERE p.user_id = $1 AND p.deleted_at IS NULL
+			  ORDER BY p.last_updated DESC LIMIT 1`
+
+	var progress Progress
+	var chapterTitle string
+
+	err := sqlDB.QueryRow(query, userID).Scan(
+		&progress.ID, &progress.UserID, &progress.ChapterID, &progress.ContentType,
+		&progress.VideoTimestamp, &progress.QuizQuestionIndex, &progress.IsCompleted,
+		&progress.LastUpdated, &chapterTitle,
+	)
+
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusOK, gin.H{
+			"success":      true,
+			"has_progress": false,
+			"message":      "No progress found for this user",
+		})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+		})
+		return
+	}
+
+	contentType := progress.ContentType
+	summary := UserProgressSummary{
 		HasProgress:      true,
 		LastChapterID:    &progress.ChapterID,
 		LastContentType:  &contentType,
 		LastVideoTime:    progress.VideoTimestamp,
 		LastQuizQuestion: progress.QuizQuestionIndex,
-		ChapterTitle:     &chapter.Title,
+		ChapterTitle:     &chapterTitle,
 		LastUpdated:      &progress.LastUpdated,
 	}
 
@@ -156,15 +225,38 @@ func GetUserProgress(c *gin.Context) {
 	})
 }
 
-// GetChapterProgress - Get progress for a specific chapter
+// GetChapterProgressRaw - Get progress for a specific chapter
 func GetChapterProgress(c *gin.Context) {
 	userID := c.Param("userId")
 	chapterID := c.Param("chapterId")
+	sqlDB, _ := database.DB.DB()
 
-	var progressRecords []models.Progress
-	database.DB.Where("user_id = ? AND chapter_id = ?", userID, chapterID).
-		Order("last_updated DESC").
-		Find(&progressRecords)
+	query := `SELECT id, user_id, chapter_id, content_type, video_timestamp,
+			  quiz_question_index, is_completed, last_updated, created_at, updated_at
+			  FROM progresses
+			  WHERE user_id = $1 AND chapter_id = $2 AND deleted_at IS NULL
+			  ORDER BY last_updated DESC`
+
+	rows, err := sqlDB.Query(query, userID, chapterID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to fetch progress",
+		})
+		return
+	}
+	defer rows.Close()
+
+	var progressRecords []Progress
+	for rows.Next() {
+		var p Progress
+		err := rows.Scan(&p.ID, &p.UserID, &p.ChapterID, &p.ContentType,
+			&p.VideoTimestamp, &p.QuizQuestionIndex, &p.IsCompleted,
+			&p.LastUpdated, &p.CreatedAt, &p.UpdatedAt)
+		if err == nil {
+			progressRecords = append(progressRecords, p)
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":  true,
@@ -172,14 +264,37 @@ func GetChapterProgress(c *gin.Context) {
 	})
 }
 
-// GetAllUserProgress - Get all progress for a user (all chapters)
+// GetAllUserProgressRaw - Get all progress for a user
 func GetAllUserProgress(c *gin.Context) {
 	userID := c.Param("userId")
+	sqlDB, _ := database.DB.DB()
 
-	var progressRecords []models.Progress
-	database.DB.Where("user_id = ?", userID).
-		Order("chapter_id ASC, content_type ASC").
-		Find(&progressRecords)
+	query := `SELECT id, user_id, chapter_id, content_type, video_timestamp,
+			  quiz_question_index, is_completed, last_updated, created_at, updated_at
+			  FROM progresses
+			  WHERE user_id = $1 AND deleted_at IS NULL
+			  ORDER BY chapter_id ASC, content_type ASC`
+
+	rows, err := sqlDB.Query(query, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to fetch progress",
+		})
+		return
+	}
+	defer rows.Close()
+
+	var progressRecords []Progress
+	for rows.Next() {
+		var p Progress
+		err := rows.Scan(&p.ID, &p.UserID, &p.ChapterID, &p.ContentType,
+			&p.VideoTimestamp, &p.QuizQuestionIndex, &p.IsCompleted,
+			&p.LastUpdated, &p.CreatedAt, &p.UpdatedAt)
+		if err == nil {
+			progressRecords = append(progressRecords, p)
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":  true,
@@ -187,15 +302,28 @@ func GetAllUserProgress(c *gin.Context) {
 	})
 }
 
-// ResetProgress - Reset all progress for a user (optional feature)
+// ResetProgressRaw - Reset all progress for a user
 func ResetProgress(c *gin.Context) {
 	userID := c.Param("userId")
+	sqlDB, _ := database.DB.DB()
 
-	result := database.DB.Where("user_id = ?", userID).Delete(&models.Progress{})
+	// Soft delete
+	query := `UPDATE progresses SET deleted_at = NOW() WHERE user_id = $1 AND deleted_at IS NULL`
+
+	result, err := sqlDB.Exec(query, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to reset progress",
+		})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Progress reset successfully",
-		"deleted": result.RowsAffected,
+		"deleted": rowsAffected,
 	})
 }

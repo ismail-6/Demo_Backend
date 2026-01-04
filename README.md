@@ -1,21 +1,24 @@
-# Learning App Backend - Go REST API
+# LearnHub Backend - Go REST API
 
-A RESTful API backend for a learning app with resume functionality (Netflix-style). Built with Go, Gin framework, and SQLite.
+A RESTful API backend for a learning platform with video lessons, quizzes, and progress tracking. Built with Go, Gin framework, and PostgreSQL with **100% raw SQL queries** (no ORM).
 
 ## Features
 
-- Simple userId-based authentication (no password required)
-- 3 chapters with video lessons and quizzes
-- Progress tracking with resume capability
-- Auto-saves video timestamp and quiz question index
-- Cross-platform support with CORS enabled
+- 🔐 Simple userId-based authentication (no password required)
+- 📚 5 chapters with video lessons and quizzes
+- 📊 Progress tracking with resume capability
+- 🎯 Quiz answer history tracking
+- 💾 Auto-saves video timestamp and quiz progress
+- 🔄 Resume from where you left off (Netflix-style)
+- 🌐 Cross-platform support with CORS enabled
+- ⚡ 100% query-driven (raw SQL, no ORM overhead)
 
 ## Tech Stack
 
 - **Language**: Go 1.21+
 - **Framework**: Gin
-- **ORM**: GORM
-- **Database**: SQLite
+- **Database**: PostgreSQL (Production) / SQLite (Development)
+- **Queries**: Raw SQL (100% query-driven)
 - **CORS**: gin-contrib/cors
 
 ## Project Structure
@@ -23,40 +26,53 @@ A RESTful API backend for a learning app with resume functionality (Netflix-styl
 ```
 Demo_Backend/
 ├── main.go                 # Entry point and routes
-├── models/                 # Data models
-│   ├── user.go
-│   ├── chapter.go
-│   └── progress.go
-├── handlers/               # Request handlers
-│   ├── auth.go
-│   ├── chapters.go
-│   └── progress.go
-├── database/               # Database setup and seeding
-│   └── db.go
-├── middleware/             # Middleware (CORS, etc.)
-│   └── cors.go
-└── learning_app.db        # SQLite database (auto-created)
+├── handlers/               # Request handlers (all raw SQL)
+│   ├── auth.go            # Authentication handlers
+│   ├── chapters.go        # Chapter/video/quiz handlers
+│   ├── progress.go        # Progress tracking handlers
+│   ├── quiz_answers.go    # Quiz answer history handlers
+│   └── quiz_with_history.go # Quiz resume/state handlers
+├── database/              # Database connection
+│   └── db.go             # GORM for connection only (queries are raw SQL)
+├── config/               # Configuration
+│   └── config.go
+├── middleware/           # Middleware
+│   └── cors.go          # CORS configuration
+└── deploy_production.sh # Production deployment script
 ```
 
-## Installation
+## Installation & Setup
 
-1. **Install Go** (1.21 or higher)
-   - Download from: https://golang.org/dl/
+### Prerequisites
+- Go 1.21+
+- PostgreSQL (for production) or SQLite (for development)
 
-2. **Navigate to project directory**
-   ```bash
-   cd /home/ismail/Documents/Project/Demo_Backend
-   ```
+### 1. Install Dependencies
+```bash
+cd /home/ismail/Documents/Project/Demo_Backend
+go mod download
+```
 
-3. **Install dependencies**
-   ```bash
-   go mod download
-   ```
+### 2. Database Setup (PostgreSQL Production)
 
-4. **Run the server**
-   ```bash
-   go run main.go
-   ```
+Set your database URL:
+```bash
+export DATABASE_URL="postgresql://user:password@host:port/database"
+```
+
+The application will automatically connect to PostgreSQL when `DATABASE_URL` is set.
+
+### 3. Run the Server
+
+**Development (SQLite):**
+```bash
+go run main.go
+```
+
+**Production (PostgreSQL):**
+```bash
+./deploy_production.sh
+```
 
 The server will start on `http://localhost:8080`
 
@@ -66,7 +82,6 @@ The server will start on `http://localhost:8080`
 ```
 GET /health
 ```
-Check if the API is running.
 
 ### Authentication
 
@@ -76,46 +91,18 @@ POST /api/auth/login
 Content-Type: application/json
 
 {
-  "user_id": "user123"
-}
-
-Response:
-{
-  "success": true,
-  "message": "Login successful",
-  "user": {
-    "id": 1,
-    "user_id": "user123",
-    "username": "user123",
-    "created_at": "2024-01-02T10:00:00Z"
-  }
+  "user_id": "user_001"
 }
 ```
 
 #### Logout
 ```
 POST /api/auth/logout
-
-Response:
-{
-  "success": true,
-  "message": "Logout successful"
-}
 ```
 
 #### Get User Details
 ```
 GET /api/auth/user/:userId
-
-Response:
-{
-  "success": true,
-  "user": {
-    "id": 1,
-    "user_id": "user123",
-    "username": "user123"
-  }
-}
 ```
 
 ### Chapters
@@ -123,93 +110,26 @@ Response:
 #### Get All Chapters
 ```
 GET /api/chapters
-
-Response:
-{
-  "success": true,
-  "chapters": [
-    {
-      "id": 1,
-      "title": "Introduction to Programming",
-      "description": "Learn the basics of programming concepts and logic",
-      "order_index": 1
-    },
-    ...
-  ]
-}
 ```
 
 #### Get Chapter by ID
 ```
 GET /api/chapters/:id
-
-Response:
-{
-  "success": true,
-  "chapter": {
-    "id": 1,
-    "title": "Introduction to Programming",
-    "description": "Learn the basics...",
-    "order_index": 1
-  }
-}
 ```
 
 #### Get Chapter Video
 ```
 GET /api/chapters/:id/video
-
-Response:
-{
-  "success": true,
-  "video": {
-    "id": 1,
-    "chapter_id": 1,
-    "title": "What is Programming?",
-    "video_url": "https://...",
-    "duration_seconds": 596
-  }
-}
 ```
 
-#### Get Chapter Quiz
+#### Get Chapter Quiz Questions
 ```
 GET /api/chapters/:id/quiz
-
-Response:
-{
-  "success": true,
-  "questions": [
-    {
-      "id": 1,
-      "chapter_id": 1,
-      "question_text": "What is a variable in programming?",
-      "option_a": "A fixed value that never changes",
-      "option_b": "A container for storing data values",
-      "option_c": "A type of loop",
-      "option_d": "A programming language",
-      "correct_answer": "B",
-      "order_index": 0
-    },
-    ...
-  ]
-}
 ```
 
 #### Get Chapter Content (Video + Quiz)
 ```
 GET /api/chapters/:id/content
-
-Response:
-{
-  "success": true,
-  "chapter": {
-    "id": 1,
-    "title": "Introduction to Programming",
-    "video": {...},
-    "quiz_questions": [...]
-  }
-}
 ```
 
 ### Progress Tracking
@@ -221,146 +141,221 @@ Content-Type: application/json
 
 For Video:
 {
-  "user_id": "user123",
+  "user_id": "user_001",
   "chapter_id": 1,
   "content_type": "video",
-  "video_timestamp": 33,
+  "video_timestamp": 120,
   "is_completed": false
 }
 
 For Quiz:
 {
-  "user_id": "user123",
+  "user_id": "user_001",
   "chapter_id": 1,
   "content_type": "quiz",
   "quiz_question_index": 2,
   "is_completed": false
-}
-
-Response:
-{
-  "success": true,
-  "message": "Progress saved successfully",
-  "progress": {
-    "id": 1,
-    "user_id": "user123",
-    "chapter_id": 1,
-    "content_type": "video",
-    "video_timestamp": 33,
-    "is_completed": false,
-    "last_updated": "2024-01-02T10:30:00Z"
-  }
 }
 ```
 
 #### Get User's Latest Progress
 ```
 GET /api/progress/user/:userId
-
-Response:
-{
-  "success": true,
-  "progress": {
-    "has_progress": true,
-    "last_chapter_id": 2,
-    "last_content_type": "video",
-    "last_video_time": 33,
-    "chapter_title": "Data Structures Fundamentals",
-    "last_updated": "2024-01-02T10:30:00Z"
-  }
-}
 ```
 
 #### Get All User Progress
 ```
 GET /api/progress/user/:userId/all
-
-Response:
-{
-  "success": true,
-  "progress": [
-    {
-      "id": 1,
-      "user_id": "user123",
-      "chapter_id": 1,
-      "content_type": "video",
-      "video_timestamp": 596,
-      "is_completed": true
-    },
-    ...
-  ]
-}
 ```
 
 #### Get Chapter-Specific Progress
 ```
 GET /api/progress/user/:userId/chapter/:chapterId
-
-Response:
-{
-  "success": true,
-  "progress": [
-    {
-      "id": 1,
-      "user_id": "user123",
-      "chapter_id": 1,
-      "content_type": "video",
-      "video_timestamp": 150
-    },
-    {
-      "id": 2,
-      "user_id": "user123",
-      "chapter_id": 1,
-      "content_type": "quiz",
-      "quiz_question_index": 3
-    }
-  ]
-}
 ```
 
 #### Reset User Progress
 ```
 DELETE /api/progress/user/:userId/reset
-
-Response:
-{
-  "success": true,
-  "message": "Progress reset successfully",
-  "deleted": 5
-}
 ```
+
+### Quiz Answer History
+
+#### Submit Quiz Answer
+```
+POST /api/quiz/submit
+Content-Type: application/json
+
+{
+  "user_id": "user_001",
+  "chapter_id": 1,
+  "quiz_question_id": 5,
+  "user_answer": "B"
+}
+
+Response includes:
+- is_correct: true/false
+- correct_answer: "B"
+- Full answer details
+```
+
+#### Get Quiz History for Chapter
+```
+GET /api/quiz/history/user/:userId/chapter/:chapterId
+```
+
+#### Get All Quiz History
+```
+GET /api/quiz/history/user/:userId
+```
+
+#### Get Quiz Scores Summary
+```
+GET /api/quiz/score/user/:userId
+
+Returns score per chapter with percentages
+```
+
+#### Get Question Answer History
+```
+GET /api/quiz/history/user/:userId/question/:questionId
+```
+
+#### Clear Quiz History
+```
+DELETE /api/quiz/history/user/:userId/clear?chapter_id=1
+```
+
+### Quiz Resume Feature
+
+#### Get Quiz with User's Answer History (Preserves State)
+```
+GET /api/quiz/chapter/:id/with-history?user_id=USER_ID
+
+Returns all questions with:
+- has_answered: true/false
+- user_answer: "A"/"B"/"C"/"D" (if answered)
+- is_correct: true/false (if answered)
+- correct_answer: shown only if user has answered
+- times_attempted: number of attempts
+```
+
+#### Get Quiz Resume Point
+```
+GET /api/quiz/resume/user/:userId/chapter/:chapterId
+
+Returns first unanswered question or completion status
+```
+
+## Database Schema
+
+### Tables
+
+**users**
+- id, user_id (unique), username
+- created_at, updated_at, deleted_at
+
+**chapters**
+- id, title, description, order_index
+- created_at, updated_at, deleted_at
+
+**videos** (One-to-One with chapters)
+- id, chapter_id (FK), title, video_url, duration_seconds
+- created_at, updated_at, deleted_at
+
+**quiz_questions** (One-to-Many with chapters)
+- id, chapter_id (FK), question_text
+- option_a, option_b, option_c, option_d
+- correct_answer, order_index
+- created_at, updated_at, deleted_at
+
+**progresses**
+- id, user_id, chapter_id (FK), content_type
+- video_timestamp, quiz_question_index
+- is_completed, last_updated
+- created_at, updated_at, deleted_at
+
+**quiz_answers** (Quiz history tracking)
+- id, user_id, chapter_id (FK), quiz_question_id (FK)
+- user_answer, is_correct, answered_at
+- created_at, updated_at, deleted_at
+
+### Relationships
+- chapters (1) ──── videos (1) [One-to-One]
+- chapters (1) ────< quiz_questions (M) [One-to-Many]
+- chapters (1) ────< progresses (M) [One-to-Many]
+- quiz_questions (1) ────< quiz_answers (M) [One-to-Many]
 
 ## Sample Data
 
-The database is auto-seeded with:
-
-### Chapters (3)
+### Chapters (5)
 1. Introduction to Programming
-2. Data Structures Fundamentals
-3. Algorithms and Problem Solving
+2. Variables and Data Types
+3. Control Flow
+4. Functions and Methods
+5. Object-Oriented Programming
 
-### Videos (3)
-- Each chapter has one video (using public sample videos)
-- Videos range from 15 to 653 seconds
+### Videos (5)
+- Real YouTube tutorial links
+- One video per chapter
+- Duration: 13-62 minutes
 
 ### Quiz Questions (15)
-- 5 questions per chapter
+- 3 questions per chapter
 - Multiple choice (A, B, C, D)
-- Questions cover chapter topics
+- Covers chapter topics
 
 ## Development
 
 ### Build
 ```bash
-go build -o learning-app-server
+go build -o learnhub-server main.go
 ```
 
 ### Run
 ```bash
-./learning-app-server
+./learnhub-server
 ```
 
-### Test with cURL
+### Deploy to Production
+```bash
+./deploy_production.sh
+```
+
+## Architecture Highlights
+
+### 🚀 100% Query-Driven
+- **No ORM models** - All queries are raw SQL
+- **Direct PostgreSQL** - Using database/sql with GORM connection pool
+- **Better Performance** - No ORM overhead
+- **Clear Intent** - SQL queries show exactly what's happening
+
+### 📊 Quiz State Preservation
+When users reopen a quiz:
+- ✅ See which questions they've answered
+- ✅ See if answers were correct/incorrect
+- ✅ Resume from first unanswered question
+- ✅ Review past answers and see correct answers
+- ✅ Full history of all attempts
+
+### 💾 Progress Tracking
+- Auto-saves video playback position
+- Tracks quiz question progress
+- Resume functionality (Netflix-style)
+- Per-chapter and global progress views
+
+## Environment Variables
+
+```bash
+# PostgreSQL (Production)
+export DATABASE_URL="postgresql://user:password@host:port/database"
+export PORT=8080
+export ENVIRONMENT=production
+
+# SQLite (Development) - Auto-detected if DATABASE_URL not set
+# No environment variables needed
+```
+
+## Testing with cURL
 
 **Login:**
 ```bash
@@ -387,68 +382,41 @@ curl -X POST http://localhost:8080/api/progress \
   }'
 ```
 
-**Get User Progress:**
+**Submit Quiz Answer:**
 ```bash
-curl http://localhost:8080/api/progress/user/test_user
+curl -X POST http://localhost:8080/api/quiz/submit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "test_user",
+    "chapter_id": 1,
+    "quiz_question_id": 1,
+    "user_answer": "B"
+  }'
 ```
 
-## Database Schema
+**Get Quiz with History:**
+```bash
+curl "http://localhost:8080/api/quiz/chapter/1/with-history?user_id=test_user"
+```
 
-### Users
-- `id` (primary key)
-- `user_id` (unique)
-- `username`
-- `created_at`, `updated_at`
+## Production Deployment
 
-### Chapters
-- `id` (primary key)
-- `title`
-- `description`
-- `order_index`
-
-### Videos
-- `id` (primary key)
-- `chapter_id` (foreign key)
-- `title`
-- `video_url`
-- `duration_seconds`
-
-### Quiz Questions
-- `id` (primary key)
-- `chapter_id` (foreign key)
-- `question_text`
-- `option_a`, `option_b`, `option_c`, `option_d`
-- `correct_answer`
-- `order_index`
-
-### Progress
-- `id` (primary key)
-- `user_id` (indexed)
-- `chapter_id` (indexed)
-- `content_type` (video/quiz)
-- `video_timestamp` (nullable)
-- `quiz_question_index` (nullable)
-- `is_completed`
-- `last_updated`
+The app is configured for production deployment with:
+- PostgreSQL database
+- Silent logging (no SQL query logs)
+- Environment-based configuration
+- CORS enabled for cross-origin requests
+- Port 8080 (configurable via PORT env var)
 
 ## Notes
 
-- The database file `learning_app.db` is created automatically on first run
-- User IDs are auto-created on first login (no pre-registration needed)
-- Progress is automatically updated with latest timestamp/index
-- CORS is enabled for all origins (suitable for development)
-- Video URLs use Google's public sample videos
-
-## Next Steps
-
-For production deployment:
-1. Change CORS settings to specific origins
-2. Add authentication middleware for protected routes
-3. Switch to PostgreSQL or MySQL for production
-4. Add rate limiting
-5. Add logging middleware
-6. Add input validation and sanitization
-7. Add unit tests
+- Database schema managed via external SQL files
+- All queries use raw SQL with parameterized statements ($1, $2, etc.)
+- Foreign keys enforce referential integrity
+- Soft deletes via `deleted_at` column
+- Indexes on frequently queried columns
+- User progress preserved across sessions
+- Quiz history tracks all attempts
 
 ## License
 
