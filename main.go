@@ -14,9 +14,13 @@ func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
 	log.Printf("Starting in %s mode", cfg.Environment)
+	log.Printf("Port: %s", cfg.Port)
+	log.Printf("Database Type: %s", cfg.DatabaseType)
 
 	// Initialize database
+	log.Println("Initializing database connection...")
 	database.InitDatabase(cfg)
+	log.Println("Database initialized successfully")
 
 	// Create Gin router
 	router := gin.Default()

@@ -44,10 +44,12 @@ Demo_Backend/
 ## Installation & Setup
 
 ### Prerequisites
+
 - Go 1.21+
 - PostgreSQL (for production) or SQLite (for development)
 
 ### 1. Install Dependencies
+
 ```bash
 cd /home/ismail/Documents/Project/Demo_Backend
 go mod download
@@ -56,8 +58,9 @@ go mod download
 ### 2. Database Setup (PostgreSQL Production)
 
 Set your database URL:
+
 ```bash
-export DATABASE_URL="postgresql://user:password@host:port/database"
+export DATABASE_URL="postgresql://production_db_em4b_user:aMDjUPiChzv5mfw2O70NyICuqf0IvqWc@dpg-d5ca45shg0os73e4ruu0-a.oregon-postgres.render.com/production_db_em4b"
 ```
 
 The application will automatically connect to PostgreSQL when `DATABASE_URL` is set.
@@ -65,11 +68,13 @@ The application will automatically connect to PostgreSQL when `DATABASE_URL` is 
 ### 3. Run the Server
 
 **Development (SQLite):**
+
 ```bash
 go run main.go
 ```
 
 **Production (PostgreSQL):**
+
 ```bash
 ./deploy_production.sh
 ```
@@ -79,6 +84,7 @@ The server will start on `http://localhost:8080`
 ## API Endpoints
 
 ### Health Check
+
 ```
 GET /health
 ```
@@ -86,6 +92,7 @@ GET /health
 ### Authentication
 
 #### Login (Create/Get User)
+
 ```
 POST /api/auth/login
 Content-Type: application/json
@@ -96,11 +103,13 @@ Content-Type: application/json
 ```
 
 #### Logout
+
 ```
 POST /api/auth/logout
 ```
 
 #### Get User Details
+
 ```
 GET /api/auth/user/:userId
 ```
@@ -108,26 +117,31 @@ GET /api/auth/user/:userId
 ### Chapters
 
 #### Get All Chapters
+
 ```
 GET /api/chapters
 ```
 
 #### Get Chapter by ID
+
 ```
 GET /api/chapters/:id
 ```
 
 #### Get Chapter Video
+
 ```
 GET /api/chapters/:id/video
 ```
 
 #### Get Chapter Quiz Questions
+
 ```
 GET /api/chapters/:id/quiz
 ```
 
 #### Get Chapter Content (Video + Quiz)
+
 ```
 GET /api/chapters/:id/content
 ```
@@ -135,6 +149,7 @@ GET /api/chapters/:id/content
 ### Progress Tracking
 
 #### Save Progress
+
 ```
 POST /api/progress
 Content-Type: application/json
@@ -159,21 +174,25 @@ For Quiz:
 ```
 
 #### Get User's Latest Progress
+
 ```
 GET /api/progress/user/:userId
 ```
 
 #### Get All User Progress
+
 ```
 GET /api/progress/user/:userId/all
 ```
 
 #### Get Chapter-Specific Progress
+
 ```
 GET /api/progress/user/:userId/chapter/:chapterId
 ```
 
 #### Reset User Progress
+
 ```
 DELETE /api/progress/user/:userId/reset
 ```
@@ -181,6 +200,7 @@ DELETE /api/progress/user/:userId/reset
 ### Quiz Answer History
 
 #### Submit Quiz Answer
+
 ```
 POST /api/quiz/submit
 Content-Type: application/json
@@ -199,16 +219,19 @@ Response includes:
 ```
 
 #### Get Quiz History for Chapter
+
 ```
 GET /api/quiz/history/user/:userId/chapter/:chapterId
 ```
 
 #### Get All Quiz History
+
 ```
 GET /api/quiz/history/user/:userId
 ```
 
 #### Get Quiz Scores Summary
+
 ```
 GET /api/quiz/score/user/:userId
 
@@ -216,11 +239,13 @@ Returns score per chapter with percentages
 ```
 
 #### Get Question Answer History
+
 ```
 GET /api/quiz/history/user/:userId/question/:questionId
 ```
 
 #### Clear Quiz History
+
 ```
 DELETE /api/quiz/history/user/:userId/clear?chapter_id=1
 ```
@@ -228,6 +253,7 @@ DELETE /api/quiz/history/user/:userId/clear?chapter_id=1
 ### Quiz Resume Feature
 
 #### Get Quiz with User's Answer History (Preserves State)
+
 ```
 GET /api/quiz/chapter/:id/with-history?user_id=USER_ID
 
@@ -240,6 +266,7 @@ Returns all questions with:
 ```
 
 #### Get Quiz Resume Point
+
 ```
 GET /api/quiz/resume/user/:userId/chapter/:chapterId
 
@@ -251,35 +278,42 @@ Returns first unanswered question or completion status
 ### Tables
 
 **users**
+
 - id, user_id (unique), username
 - created_at, updated_at, deleted_at
 
 **chapters**
+
 - id, title, description, order_index
 - created_at, updated_at, deleted_at
 
 **videos** (One-to-One with chapters)
+
 - id, chapter_id (FK), title, video_url, duration_seconds
 - created_at, updated_at, deleted_at
 
 **quiz_questions** (One-to-Many with chapters)
+
 - id, chapter_id (FK), question_text
 - option_a, option_b, option_c, option_d
 - correct_answer, order_index
 - created_at, updated_at, deleted_at
 
 **progresses**
+
 - id, user_id, chapter_id (FK), content_type
 - video_timestamp, quiz_question_index
 - is_completed, last_updated
 - created_at, updated_at, deleted_at
 
 **quiz_answers** (Quiz history tracking)
+
 - id, user_id, chapter_id (FK), quiz_question_id (FK)
 - user_answer, is_correct, answered_at
 - created_at, updated_at, deleted_at
 
 ### Relationships
+
 - chapters (1) ──── videos (1) [One-to-One]
 - chapters (1) ────< quiz_questions (M) [One-to-Many]
 - chapters (1) ────< progresses (M) [One-to-Many]
@@ -288,6 +322,7 @@ Returns first unanswered question or completion status
 ## Sample Data
 
 ### Chapters (5)
+
 1. Introduction to Programming
 2. Variables and Data Types
 3. Control Flow
@@ -295,11 +330,13 @@ Returns first unanswered question or completion status
 5. Object-Oriented Programming
 
 ### Videos (5)
+
 - Real YouTube tutorial links
 - One video per chapter
 - Duration: 13-62 minutes
 
 ### Quiz Questions (15)
+
 - 3 questions per chapter
 - Multiple choice (A, B, C, D)
 - Covers chapter topics
@@ -307,16 +344,19 @@ Returns first unanswered question or completion status
 ## Development
 
 ### Build
+
 ```bash
 go build -o learnhub-server main.go
 ```
 
 ### Run
+
 ```bash
 ./learnhub-server
 ```
 
 ### Deploy to Production
+
 ```bash
 ./deploy_production.sh
 ```
@@ -324,13 +364,16 @@ go build -o learnhub-server main.go
 ## Architecture Highlights
 
 ### 🚀 100% Query-Driven
+
 - **No ORM models** - All queries are raw SQL
 - **Direct PostgreSQL** - Using database/sql with GORM connection pool
 - **Better Performance** - No ORM overhead
 - **Clear Intent** - SQL queries show exactly what's happening
 
 ### 📊 Quiz State Preservation
+
 When users reopen a quiz:
+
 - ✅ See which questions they've answered
 - ✅ See if answers were correct/incorrect
 - ✅ Resume from first unanswered question
@@ -338,6 +381,7 @@ When users reopen a quiz:
 - ✅ Full history of all attempts
 
 ### 💾 Progress Tracking
+
 - Auto-saves video playback position
 - Tracks quiz question progress
 - Resume functionality (Netflix-style)
@@ -347,7 +391,7 @@ When users reopen a quiz:
 
 ```bash
 # PostgreSQL (Production)
-export DATABASE_URL="postgresql://user:password@host:port/database"
+export DATABASE_URL="postgresql://production_db_em4b_user:aMDjUPiChzv5mfw2O70NyICuqf0IvqWc@dpg-d5ca45shg0os73e4ruu0-a.oregon-postgres.render.com/production_db_em4b"
 export PORT=8080
 export ENVIRONMENT=production
 
@@ -358,6 +402,7 @@ export ENVIRONMENT=production
 ## Testing with cURL
 
 **Login:**
+
 ```bash
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
@@ -365,11 +410,13 @@ curl -X POST http://localhost:8080/api/auth/login \
 ```
 
 **Get Chapters:**
+
 ```bash
 curl http://localhost:8080/api/chapters
 ```
 
 **Save Video Progress:**
+
 ```bash
 curl -X POST http://localhost:8080/api/progress \
   -H "Content-Type: application/json" \
@@ -383,6 +430,7 @@ curl -X POST http://localhost:8080/api/progress \
 ```
 
 **Submit Quiz Answer:**
+
 ```bash
 curl -X POST http://localhost:8080/api/quiz/submit \
   -H "Content-Type: application/json" \
@@ -395,6 +443,7 @@ curl -X POST http://localhost:8080/api/quiz/submit \
 ```
 
 **Get Quiz with History:**
+
 ```bash
 curl "http://localhost:8080/api/quiz/chapter/1/with-history?user_id=test_user"
 ```
@@ -402,6 +451,7 @@ curl "http://localhost:8080/api/quiz/chapter/1/with-history?user_id=test_user"
 ## Production Deployment
 
 The app is configured for production deployment with:
+
 - PostgreSQL database
 - Silent logging (no SQL query logs)
 - Environment-based configuration
